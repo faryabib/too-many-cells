@@ -36,7 +36,7 @@ import qualified Numeric.LinearAlgebra as H
 -- Basic
 newtype DendrogramFile  = DendrogramFile { unDendrogramFile :: FilePath }
 newtype CellFile        = CellFile { unCellFile :: FilePath }
-newtype GeneFile        = GeneFile { unGeneFile :: FilePath }
+newtype FeatureFile        = FeatureFile { unFeatureFile :: FilePath }
 newtype ProjectionFile  = ProjectionFile { unProjectionFile :: FilePath }
 newtype CellWhitelistFile = CellWhitelistFile
     { unCellWhitelistFile :: FilePath
@@ -48,5 +48,12 @@ newtype OutputDirectory  = OutputDirectory { unOutputDirectory :: FilePath }
 
 -- Advanced
 data MatrixFileFolder = MatrixFile FilePath | MatrixFolder FilePath
+                        deriving (Read, Show)
+data FragmentsFile = FragmentsFile FilePath
+                     deriving (Read, Show)
 data MatrixFileType = DecompressedMatrix MatrixFileFolder
                     | CompressedMatrix MatrixFileFolder
+                    | CompressedFragments FragmentsFile
+                    | BedGraph FilePath
+                    | BigWig FilePath
+                    deriving (Read, Show)

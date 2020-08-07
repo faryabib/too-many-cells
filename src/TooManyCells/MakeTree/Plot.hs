@@ -92,17 +92,6 @@ getProjectionsColor
 
   return $ (unX . fst $ p, unY . snd $ p, l, c)
 
--- -- | Plot clusters on a 2D axis.
--- plotClusters :: [(CellInfo, Cluster)] -> Axis B V2 Double
--- plotClusters vs = r2Axis &~ do
-
---     forM vs $ \(CellInfo { _projection = (X !x, Y !y)}, Cluster c) ->
---         scatterPlot [(x, y)] $ do
---             let color = (cycle colours2) !! c
---             plotMarker .= circle 1 # fc color # lwO 1 # lc color
-
---     hideGridLines
-
 -- | Plot clusters.
 plotClustersR :: String -> ProjectionMap -> [(CellInfo, [Cluster])] -> R s ()
 plotClustersR outputPlot pm clusterList = do
@@ -119,6 +108,7 @@ plotClustersR outputPlot pm clusterList = do
                 xlab("Projection 1") +
                 ylab("Projection 2") +
                 scale_color_discrete(guide = guide_legend(title = "Cluster", ncol = 3)) +
+                theme_cowplot() +
                 theme(aspect.ratio = 1)
 
         suppressMessages(ggsave(p, file = outputPlot_hs))
@@ -153,6 +143,7 @@ plotLabelClustersR outputPlot pm lm icm clusterList = do
                 scale_color_manual( guide = guide_legend(title = "Label")
                                   , values = colorMap
                                   ) +
+                theme_cowplot() +
                 theme(aspect.ratio = 1)
 
         suppressMessages(ggsave(p, file = outputPlot_hs))
@@ -168,12 +159,6 @@ plotClustersOnlyR outputPlot (RMatObsRow mat) clustering = do
         plot(clustering_hs$hc)
         dev.off()
     |]
-
-    -- Plot flat hierarchy.
-    -- [r| pdf(paste0(outputPlot_hs, "_flat_hierarchy.pdf", sep = ""))
-    --     plot(clustering_hs)
-    --     dev.off()
-    -- |]
 
     -- Plot clustering.
     [r| colors = rainbow(length(unique(clustering_hs$cluster)))
@@ -195,30 +180,6 @@ plotClustersOnlyR outputPlot (RMatObsRow mat) clustering = do
 
         dev.off()
     |]
-
-    -- [r| library(tsne)
-
-    --     colors = rainbow(length(unique(clustering_hs$cluster)))
-    --     names(colors) = unique(clustering_hs$cluster)
-
-    --     tsneMat = tsne(mat_hs, perplexity=50)
-
-    --     pdf(paste0(outputPlot_hs, "_tsne.pdf", sep = ""))
-
-    --     plot(tsneMat
-    --         , col=clustering_hs$cluster+1
-    --         , pch=ifelse(clustering_hs$cluster == 0, 8, 1) # Mark noise as star
-    --         , cex=ifelse(clustering_hs$cluster == 0, 0.5, 0.75) # Decrease size of noise
-    --         , xlab=NA
-    --         , ylab=NA
-    --         )
-    --     colors = sapply(1:length(clustering_hs$cluster)
-    --                    , function(i) adjustcolor(palette()[(clustering_hs$cluster+1)[i]], alpha.f = clustering_hs$membership_prob[i])
-    --                    )
-    --     points(tsneMat, col=colors, pch=20)
-
-    --     dev.off()
-    -- |]
 
     return ()
 
@@ -242,6 +203,7 @@ plotRankedModularityR outputPlot tree = do
                 # geom_vline(xintercept = cutoff_hs, linetype = "dashed", color = "red") +
                 xlab("Ranking") +
                 ylab("Modularity") +
+                theme_cowplot() +
                 theme(aspect.ratio = 1)
 
         suppressMessages(ggsave(p, file = outputPlot_hs))
@@ -286,6 +248,7 @@ plotClumpinessHeatmapR outputPlot cs = Right $ do
                 xlab("") +
                 ylab("") +
                 scale_fill_gradient2(guide = guide_colorbar(title = "Clumpiness"), midpoint = 0.5, low = muted("blue"), high = muted("red")) +
+                theme_cowplot() +
                 theme(axis.text.x = element_text(angle = 315, hjust = 0))
 
         suppressMessages(ggsave(p, file = outputPlot_hs))

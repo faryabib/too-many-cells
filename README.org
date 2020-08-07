@@ -6,7 +6,8 @@
 
 [[https://gregoryschwartz.github.io/too-many-cells/][Website]]
 
-See [[https://github.com/GregorySchwartz/too-many-cells]] for latest version.
+See [[https://github.com/GregorySchwartz/too-many-cells]] for latest version. See [[#too-many-peaks][
+=too-many-peaks= ]] for more information about scATAC-seq usage.
 
 See [[https://doi.org/10.1038/s41592-020-0748-5][the publication]] (and please cite!) for more information about the algorithm.
 
@@ -19,7 +20,7 @@ the relationships between cell clades. This includes new ways of clustering,
 plotting, choosing differential expression comparisons, and more! While
 =too-many-cells= was intended for single cell RNA-seq, any abundance data in any
 domain can be used. Rather than opt for a unique positioning of each cell using
-dimensionality reduction approaches like t-SNE, UMAP, and PCA, =too-many-cells=
+dimensionality reduction approaches like t-SNE, UMAP, and LSA, =too-many-cells=
 recursively divides cells into clusters and relates clusters rather than
 individual cells. In fact, by recursively dividing until further dividing would
 be considered noise or random partitioning, we can eliminate noisy relationships
@@ -28,9 +29,24 @@ different perspective of single cells, using our [[http://github.com/GregorySchw
 and tree measures to describe simultaneously large and small populations,
 without additional parameters or runs. See below for a full list of features.
 
-* New features for current version
 
-- Now packaged for the functional package manager =nix=! No more dependency
+* New features for v2.0.0.0
+
+- Support for scATAC-seq for chromatin state relationships with [[#too-many-peaks][ =too-many-peaks= ]]!
+- Find enchriched regions as peaks for scATAC-seq with =peaks=.
+- Find motifs from differential chromatin state using =motifs=.
+- Linear relationships across the tree as pseudotime with =paths=.
+- Classify single-cell data from bulk with =classify=.
+- New dimensionality reductions with =--lsa=.
+- Output transformed matrix with =matrix-output=.
+- Bypass =labels.csv= with =-Z= quick labels.
+- MADs-from-median-based thresholds for multi-gene overlay plots
+- Multiple normalization application
+- And much more!
+
+* New features since initial launch
+
+- Now packaged for the functional package manager =nix= (Linux only)! No more dependency
   shuffling or root for Docker needed!
 - A new R wrapper was written to quickly get data to and from =too-many-cells=
   from R. [[https://github.com/GregorySchwartz/tooManyCellsR][Check it out here]]!
@@ -40,22 +56,20 @@ without additional parameters or runs. See below for a full list of features.
   so update your =--draw-leaf "DrawItem (DrawContinuous \"Cd4\")"= argument to
   =--draw-leaf "DrawItem (DrawContinuous [\"Cd4\"])"= (notice the list
   notation).
-- Outputs values from differential entry point plots (from =--genes=), and can
-  aggregate genes by average.
+- Outputs values from differential entry point plots (from =--features=), and can
+  aggregate features by average.
 
 * Installation
 
 We provide multiple ways to install =too-many-cells=. We recommend installing
-with [[nix][ =nix= ]] or [[Stack][ =stack= ]]. =nix= will provide all dependencies in the build,
-supports linux and macOS, and should be reproducible, so try that first. We also
-have [[Docker][docker]] images and a =Dockerfile= to use in any system in case you have a
-custom build (for instance, a non-standard R installation) or difficulty
-installing. *macOS and Windows users:* =too-many-cells= was built and tested on
-linux, so we highly recommend using the =nix= (macOS) or [[Docker][docker]] (macOS or
-Windows) image (which a completely isolated environment which requires no
-compiling or installation, other than docker itself) as there may be
-difficulties in installing the dependencies. There are, however, additional
-instructions for macOS [[macOS][here]] if you really want to compile it.
+with [[nix][ =nix= ]]. =nix= will provide all dependencies in the build, supports Linux,
+and should be reproducible, so try that first. We also have [[Docker][docker]] images and a
+=Dockerfile= to use in any system in case you have a custom build (for instance,
+a non-standard R installation) or difficulty installing. *macOS and Windows
+users:* =too-many-cells= was built and tested on Linux, so we highly recommend
+using the [[Docker][docker]] image (which is a completely isolated environment which
+requires no compiling or installation, other than docker itself) as there may be
+difficulties in installing the dependencies.
 
 ** nix
 
@@ -70,7 +84,7 @@ cd too-many-cells
 nix-env -f default.nix -i too-many-cells
 #+END_SRC
 
-** Stack
+** Stack (unsupported in ~too-many-cells >= v2.0.0.0~, use nix)
 *** Dependencies
 
 You may require the following dependencies to build and run (from Ubuntu 14.04,
@@ -134,24 +148,27 @@ stack install
 **** Online
 
 We only require =stack= (or =cabal=), you do not need to download any source
-code (but you might need the stack.yaml dependency versions), just run the
-following command to place =too-many-cells= in your =~/.local/bin/=:
+code (but you might need the stack.yaml.old dependency versions), just run the
+following command to place =too-many-cells < v2.0.0.0= in your =~/.local/bin/=:
 
 #+BEGIN_SRC sh
+mv stack.yaml.preV2 stack.yaml
 stack install too-many-cells
 #+END_SRC
 
 If you run into errors like =Error: While constructing the build plan, the
-following exceptions were encountered:=, then follow it's advice. Usually you
+following exceptions were encountered:=, then follow the advice. Usually you
 just need to follow the suggestion and add the dependencies to the specified
 file. For a quick =yaml= configuration, refer to
-[[https://github.com/GregorySchwartz/too-many-cells/blob/master/stack.yaml]]. Relies
-on =eigen-3.3.4.1= right now.
+[[https://github.com/GregorySchwartz/too-many-cells/blob/master/stack.yaml.old]].
 
 **** macOS
-<<macOS>>
+:PROPERTIES:
+:CUSTOM_ID: macOS
+:END:
 
-We recommend using =nix= or [[Docker][docker]] on macOS. If you need to build
+We recommend using [[Docker][docker]] on macOS. The following is written for
+=too-many-cells < v2.0.0.0=. If you must compile
 =too-many-cells=, you should get the above dependencies. For some dependencies,
 you can use [[https://brew.sh/][brewer]], then install =too-many-cells= (in the cloned folder, don't
 forget to install the R dependencies above):
@@ -178,16 +195,16 @@ Different computers have different setups, operating systems, and repositories.
 Do put the entire program in a container to bypass difficulties (with the other
 methods above), we user =docker=. So first, [[https://docs.docker.com/][install docker]].
 
-To get =too-many-cells= (replace 0.2.2.0 with [[https://cloud.docker.com/repository/docker/gregoryschwartz/too-many-cells/general][any version needed]]):
+To get =too-many-cells= (replace 2.0.0.0 with [[https://cloud.docker.com/repository/docker/gregoryschwartz/too-many-cells/general][any version needed]]):
 
 #+BEGIN_SRC sh
-docker pull gregoryschwartz/too-many-cells:0.2.2.0
+docker pull gregoryschwartz/too-many-cells:2.0.0.0
 #+END_SRC
 
 To run =too-many-cells= in a docker container:
 
 #+BEGIN_SRC sh
-sudo docker run -it --rm -v "/home/username:/home/username" gregoryschwartz/too-many-cells:0.2.2.0 -h
+sudo docker run -it --rm -v "/home/username:/home/username" gregoryschwartz/too-many-cells:2.0.0.0 -h
 #+END_SRC
 
 Now you can follow the tutorial below with the addition of the docker paths and
@@ -195,11 +212,11 @@ commands. If you add yourself to the docker group, =sudo= is not needed. For ins
 
 #+BEGIN_SRC sh
 docker run -it --rm -v "/home/username:/home/username" \
-    gregoryschwartz/too-many-cells:0.2.2.0 make-tree \
-    --matrix-path input \
-    --labels-file labels.csv \
+    gregoryschwartz/too-many-cells:2.0.0.0 make-tree \
+    --matrix-path /home/username/path/to/input \
+    --labels-file /home/username/path/to/labels.csv \
     --draw-collection "PieRing" \
-    --output out \
+    --output /home/username/path/to/out \
     > clusters.csv
 #+END_SRC
 
@@ -219,9 +236,8 @@ write the output to the folder before the =:=.
 To build the =too-many-cells= image yourself if you want:
 
 #+BEGIN_SRC sh
-git clone https://github.com/GregorySchwartz/too-many-cells.git
-cd too-many-cells
-docker build -t too-many-cells -f ./Dockerfile .
+nix-build docker.nix
+docker load < /nix/store/${NAME_OF_OUTPUT_IMAGE}.tar.gz
 #+END_SRC
 
 * Troubleshooting
@@ -284,7 +300,7 @@ This project is a collection of libraries and programs written specifically for
 |----------------+---------------------------------------------------------------------------------------------|
 | =make-tree=    | Generate the tree from single cell data with various measurement outputs and visualize tree |
 | =interactive=  | Interactive visuzalization of the tree, very slow                                           |
-| =differential= | Find differentially expressed genes between two nodes                                       |
+| =differential= | Find differentially expressed features between two nodes                                       |
 | =diversity=    | Conduct diversity analyses of multiple cell populations                                     |
 | =paths=        | The binary tree equivalent of the so called "pseudotime", or 1D dimensionality reduction    |
 
@@ -296,8 +312,9 @@ At any point, use =-h= to see the help of each entry point.
 Also, check out [[https://github.com/GregorySchwartz/tooManyCellsR][tooManyCellsR]] for an R wrapper!
 
 ** =make-tree=
-
-<<makeTreeUsage>>
+:PROPERTIES:
+:CUSTOM_ID: makeTreeUsage
+:END:
 
 =too-many-cells make-tree= generates a binary tree using hierarchical spectral
 clustering. We start with all cells in a single node. Spectral clustering
@@ -307,7 +324,7 @@ hierarchical spectral clustering. If not, then there is only a single community
 and we do not partition -- the resulting node is a leaf and is considered the
 finest-grain cluster.
 
-*The most important argument is the =--prior= argument.* Making the tree may
+*The most important argument is the --prior argument.* Making the tree may
 take some time, so if the tree was already generated and other analysis or
 visualizations need to be run on the tree, point the =--prior= argument to the
 output folder from a previous run of =too-many-cells=. If you do not use
@@ -318,7 +335,7 @@ The main input is the =--matrix-path= argument. When a directory is supplied,
 =too-many-cells= interprets the folder to have =matrix.mtx=, =genes.tsv=, and
 =barcodes.tsv= files (=cellranger= outputs, see =cellranger= for specifics). If
 a file is supplied instead of a directory, we assume a =csv= file containing
-gene row names and cell column names. This argument can be called multiple times
+feature row names and cell column names. This argument can be called multiple times
 to combine multiple single cell matrices: =--matrix-path input1 --matrix-path
 input2=.
 
@@ -326,7 +343,11 @@ The second most important argument is =--labels-file=. Supply with a =csv= with
 a format and header of "item,label" to provide colorings and statistics of the
 relationships between labels. Here the "item" column contains the name of each
 cell (barcode) and the label is any property of the cell (the tissue of origin,
-hour in a time course, celltype, etc.).
+hour in a time course, celltype, etc.). You can also now use =-Z= as a list for
+each matching =-m= in order to manually give the entire matrix that label
+(useful for situations like =-m ./t-all -Z T-ALL -m ./control -Z Control). To
+get the newly generated labels with =-Z= into a =labels.csv= file, specify
+=--labels-output= and the =labels.csv= will be in the output folder.
 
 To see the full list of options, use =too-many-cells -h= and =-h= for each entry
 point (i.e. =too-many-cells make-tree -h=).
@@ -351,19 +372,23 @@ is a short description of each file.
 
 *** Outline with options
 
-The basic outline of the *default* pre-processing pipeline with some relevant
-options is as follows (there are many additional options including cell
-whitelists and PCA that can be seen using =too-many-cells make-tree -h=):
+The basic outline of the *default* matrix pre-processing pipeline with some
+relevant options is as follows (there are many additional options including cell
+whitelists that can be seen using =too-many-cells make-tree -h=):
 
 1. Read matrix.
-2. Remove cells with less than 250 counts (=--filter-thresholds=, =--no-filter=).
-3. Remove genes with less than 1 count (=--filter-thresholds=, =--no-filter=).
+2. Optionally remove cells with less than X counts (=--filter-thresholds=).
+3. Optionally remove features with less than X count (=--filter-thresholds=).
 4. Term frequency-inverse document frequency normalization (=--normalization=).
+4. Optionally use dimensionality reduction (=--lsa=).
 5. Finish.
 
 *** Example
 
 **** Setup
+:PROPERTIES:
+:CUSTOM_ID: preprocessedData
+:END:
 
 We start with our input matrix. Here,
 
@@ -381,10 +406,10 @@ above) or a file (a =csv= file). You can also point to a =cellranger= >= 3.0
 folder which has =matrix.mtx.gz=, =features.tsv.gz=, and =barcodes.tsv.gz= files
 instead. *You don't need to use scRNA-seq data!* You can use any data that has
 observations (cells) and features (genes), as long as you agree that the
-observations are related by their feature abundances. <<preprocessedData>> If
-you do upstream batch effect correction, PCA, normalization, or anything else,
-be sure to use =--no-filter --normalization NoneNorm= (and =--shift-positive=
-for PCA) to avoid wrong filters and scalings! *If using dimensionality reduction
+observations are related by their feature abundances. If
+you do upstream batch effect correction, LSA, normalization, or anything else,
+be sure to use =--normalization NoneNorm= (and =--shift-positive=
+for LSA) to avoid wrong filters and scalings! *If using dimensionality reduction
 such as PCA and t-SNE*, we highly recommend generating your own similarity
 matrix for use with our =cluster-tree= program and plot with =birch-beer=, as we
 emphasize a feature matrix in =too-many-cells= and dimensionality reduction
@@ -498,13 +523,15 @@ aggr=.
 
 We can now run the =too-many-cells= algorithm on our data. The resulting cells
 with assigned clusters will be printed to =stdout= (don't forget to use
-=--no-filter= and =--normalization NoneNorm= on preprocessed data, as stated
-[[preprocessedData][here]]).
+=--normalization NoneNorm= on preprocessed data, as stated [[#preprocessedData][here]]). While older
+versions had default filter thresholds for (MINCELL, MINFEATURE) counts, since
+=v2.0.0.0= the default is now no filtering to account for multiple assay types.
 
 #+BEGIN_SRC sh
 too-many-cells make-tree \
     --matrix-path input \
     --labels-file labels.csv \
+    --filter-thresholds "(250, 1)" \
     --draw-collection "PieRing" \
     --output out \
     > clusters.csv
@@ -654,6 +681,7 @@ too-many-cells make-tree \
     --prior out \
     --matrix-path input \
     --labels-file labels.csv \
+    --filter-thresholds "(250, 1)" \
     --smart-cutoff 4 \
     --min-size 1 \
     --feature-column 2 \
@@ -678,6 +706,7 @@ too-many-cells make-tree \
     --prior out \
     --matrix-path input \
     --labels-file labels.csv \
+    --filter-thresholds "(250, 1)" \
     --smart-cutoff 4 \
     --min-size 1 \
     --feature-column 2 \
@@ -696,18 +725,20 @@ the continuous color spectrum of expression values, we can have a binary "high"
 and "low" expression. Here, we'll continue to have the red and gray colors
 represent high and low expressions respectively using the =--draw-colors=
 argument. Note that this binary expression technique can be used for multiple
-features, hence it's a list of features with cutoffs so you can be high in a
-gene and low in another gene, etc. for all possible combinations.
+features, hence it's a list of features with cutoffs (=Exact= for specified
+cutoffs or =MadMedian= for how many MADs from the median) so you can be high in
+a gene and low in another gene, etc. for all possible combinations.
 
 #+BEGIN_SRC sh
 too-many-cells make-tree \
     --prior out \
     --matrix-path input \
     --labels-file labels.csv \
+    --filter-thresholds "(250, 1)" \
     --smart-cutoff 4 \
     --min-size 1 \
     --feature-column 2 \
-    --draw-leaf "DrawItem (DrawThresholdContinuous [(\"Cd4\", 0), (\"Cd8a\", 0)])" \
+    --draw-leaf "DrawItem (DrawThresholdContinuous [(\"Cd4\", Exact 0), (\"Cd8a\", Exact 0)])" \
     --draw-colors "[\"#e41a1c\", \"#377eb8\", \"#4daf4a\", \"#eaeaea\"]" \
     --draw-scale-saturation 10 \
     --output out_gene_expression \
@@ -727,6 +758,7 @@ and leaves.
 too-many-cells make-tree \
     --prior out \
     --matrix-path input \
+    --filter-thresholds "(250, 1)" \
     --labels-file labels.csv \
     --smart-cutoff 4 \
     --min-size 1 \
@@ -777,6 +809,7 @@ tuple containing two lists: ([89, 1], [98]). Then our differential genes for
 #+BEGIN_SRC sh
 too-many-cells differential \
     --matrix-path input \
+    --filter-thresholds "(250, 1)" \
     -n "([89, 1], [98])" \
     > differential.csv
 #+END_SRC
@@ -788,13 +821,14 @@ liver cells from all other subtrees, we can use the =--labels= argument:
 too-many-cells differential \
     --matrix-path input \
     --labels-file labels.csv \
+    --filter-thresholds "(250, 1)" \
     -n "([89, 1], [98])" \
     --labels "([\"Liver\"], [\"Liver\"])" \
     > differential_liver.csv
 #+END_SRC
 
 We can also look at the distribution of abundance for individual genes using the
-=--genes= and =--plot-output= arguments.
+=--features= and =--plot-output= arguments.
 
 Furthermore, we can compare each node to all other cells by specifying no nodes
 at all. The output file will contain the top =--top-n= genes for each node. We
@@ -805,6 +839,7 @@ compare all nodes to all other cells using 8 OS threads:
 #+BEGIN_SRC sh
 too-many-cells differential \
     --matrix-path input \
+    --filter-thresholds "(250, 1)" \
     -n "([], [])" \
     --normalization "UQNorm" \
     +RTS -N8
@@ -854,6 +889,159 @@ too-many-cells paths\
     -o out_paths
 #+END_SRC
 
+** Working with scATAC-seq data using =too-many-peaks=
+:PROPERTIES:
+:CUSTOM_ID: too-many-peaks
+:END:
+
+scATAC-seq is a powerful technology for quantifying chromatin accessibility for
+individual cells. =too-many-cells= now supports scATAC-seq to generate cell clade
+relationships from chromatin state information through =too-many-peaks=. All of
+the previous analyses used with gene-product features now work with genomic
+regions in the form =chrN:START-END=, where =N= is the chromosome number,
+=START= is the start of the region and =END= is the end base of the region.
+
+Matrices in this format can be read from either =CSV= or =matrix-market= as
+above but with the correctly formatted features, or you can load in directly
+from a =fragments.tsv.gz= file in Cellranger format (tab delimited with each row
+being =chrN\tSTART\tEND\tBARCODE\tCOUNT=) making sure that the filename contains
+the fragments ending, such as =t-all_fragments.tsv.gz=. For example:
+
+#+BEGIN_SRC sh
+too-many-cells make-tree\
+    -m ./t-all_fragments.tsv.gz \
+    -Z "T-ALL" \
+    -m ./control_fragments.tsv.gz
+    -Z "Control" \
+    --filter-thresholds "(1000, 1)" \
+    --bindwidth 5000 \
+    --lsa 50 \
+    --normalization NoneNorm \
+    --blacklist-regions-file Anshul_Hg19UltraHighSignalArtifactRegions.bed.gz \
+    --draw-node-number \
+    --draw-mark "MarkModularity" \
+    --fragments-output \
+    --labels-output \
+    -o out \
+    > out_leaves.csv
+#+END_SRC
+
+*Note*: We use =--lsa= and =--normalization NoneNorm= for latent semantic
+analysis dimensionality reduction as there are many features in scATAC-seq, so
+we try to overcome a potential issue where all cells are considered outliers. To
+blacklist known biased regions in the genome, we can call
+=--blacklist-regions-file=. The =--fragments-output= and =--labels-output= go
+hand-in-hand with =-Z= in order to keep the renamed barcodes and labels (found
+in the output folder). =too-many-cells= will binarize the data by default unless
+=--no-binarize= is specified. Lastly, we choose a bindwidth using =--binwidth=
+to conform to a set of standard features across cells and samples.
+
+** =peaks=
+
+With scATAC-seq, we want to identify enriched locations in the genome for each
+newly found subpopulation of cells. The =peaks= entrypoint can collect the
+appropriate fragments for quantification and visualization of peaks.
+
+#+BEGIN_SRC sh
+too-many-cells peaks \
+    -f ./out/fragments.tsv.gz \
+    --prior ./out \
+    --genome human.hg19.genome \
+    --bedgraph \
+    --labels-file ./out/labels.csv \
+    --all-nodes \
+    --peak-node "1" \
+    --peak-node "5" \
+    --peak-node-labels "(1, [\"Control\"])" \
+    --peak-node-labels "(5, [\"T-ALL\"])" \
+    -o out_peaks \
+    +RTS -N6
+#+END_SRC
+
+Here, we will have our peaks in the specified output folder, along with many
+other files and folder:
+
+| File                                             | Description                                                                                    |
+|--------------------------------------------------+------------------------------------------------------------------------------------------------|
+| =out_peaks/cluster_fragments=                    | =fragments.tsv.gz= files for each node.                                                        |
+| =out_peaks/cluster_bedgraphs=                    | Bedgraphs and bigwigs if specified using =--bedgraph= for track visualization uses.            |
+| =out_peaks/cluster_peaks/union.bdg=              | Merged peaks across all requested nodes in bedgraph format.                                    |
+| =out_peaks/cluster_peaks/union_fragments.tsv.gz= | Merged peaks across all requested nodes in =fragments.tsv.gz= format.                          |
+| =out_peaks/cluster_peaks/=                       | Folder containing merged peaks across nodes and peaks for each individual node in each folder. |
+
+=--bedgraph= enabled the =cluster_bedgraphs= folder, while =--all-nodes=
+specified to find peaks for all nodes, not just the leaves. However, when paired
+with =--peak-node=, we just look at the peaks for each node in the list (but
+=--all-nodes= is still required if looking at non-leaf nodes as well). Without
+=--peak-node=, this command would have found peaks for every node. Furthermore,
+=--peak-node-labels= allows the filtration based on the label of cells in of the
+requested node. =--genome= tells the peak finding program where the genome file
+is (containing the effective genome sizes of chromosomes in tab-delimited format
+of =chrN\tSIZE= used in the MACS2 program). Here, the =-f= =fragments.tsv.gz=
+and =labels.csv= was from the [[#too-many-peaks][previous scATAC-seq section]], where we
+automatically generated the correctly renamed barcodes and labels. Lastly, =+RTS
+-N6= tells =too-many-cells= to use six cores for the calculation. These output
+files, especially the merged peak files, can be used for differential
+accessibility analysis as in scRNA-seq. This entrypoint is highly customizable,
+down to the exact command used for peak calling, so check out =too-many-cells
+peaks -h= for more information.
+
+** =motifs=
+
+After differential accessibility using peaks, the result can be used to find
+motifs enriched in each node.
+
+#+BEGIN_SRC sh
+too-many-cells motifs \
+    --diff-file ./diff_out.csv \
+    --motif-genome hg19.fa \
+    --top-n 1000 \
+    --motif-command "homer/homer-4.9/bin/findMotifs.pl %s fasta %s" \
+    -o motifs
+#+END_SRC
+
+In this example, we use the output from a differential expression analysis using
+=too-many-cells differential= from our merged peaks. Using a complete genome
+file used by our motif program of choice (here homer, but defaults to MEME) with
+=--motif-genome=, we want to provide the motif program with the top 1000 most
+differential peaks using =--top-n=. Lastly, while the default uses MEME, we find
+homer to be much faster. The prior command shows the use of another program to
+find the motifs, making sure the =%s= for input and output are in the right
+locations (check =too-many-cells motifs -h=).
+
+** =classify=
+
+To identify potential cell type candidates from sorted bulk data,
+=too-many-cells classify= uses cosine-similarity to provide scores for each bulk
+population. For example, we have a scATAC-seq experiment in =./mat=. We also
+have known bulk ATAC-seq peak data of B cells in bedgraph files. We can score
+each cell with:
+
+#+BEGIN_SRC sh
+too-many-cells classify \
+    --reference-file ./proB.bdg \
+    --reference-file ./preB.bdg \
+    --reference-file ./memoryB.bdg \
+    --reference-file ./plasmaB.bdg \
+    -m ./mat \
+    --normalization "NoneNorm" \
+    --blacklist-regions-file "mm9-blacklist.bed.gz" \
+    > labels.csv
+#+END_SRC
+
+=--reference-file= is a list of bedgraphs here for each population. You can also
+specify a single reference file as an input matrix with each barcode being the
+label for the population, as bulk just has one sample. To use a single matrix,
+use =--single-reference-matrix= in addition to =--reference-file= to specify the
+file as a single reference matrix. The output will be identical to a normal
+=too-many-cells= =labels.csv= file, but with an additional column =score= which
+provides the value of the highest cosine-similarity label.
+
+** =matrix-output=
+
+A simple entrypoint to output the transformed matrix =too-many-cells= uses
+before clustering. Saves to =--mat-output=.
+
 * Advanced documentation
 
 Each entry point has its own documentation accessible with =-h=, such as
@@ -869,20 +1057,24 @@ too-many-cells -h
 too-many-cells, Gregory W. Schwartz. Clusters and analyzes single cell data.
 
 Usage: too-many-cells (make-tree | interactive | differential | diversity |
-                      paths)
+                      paths | classify | peaks | motifs | matrix-output)
 
 Available options:
   -h,--help                Show this help text
 
 Available commands:
-  make-tree
-  interactive
-  differential
-  diversity
-  paths
+  make-tree                
+  interactive              
+  differential             
+  diversity                
+  paths                    
+  classify                 
+  peaks                    
+  motifs                   
+  matrix-output            
 #+end_example
 
 * Demo
 
 Check out an instructional example of using =too-many-cells= [[file:workshop/workshop.html][here]] when finished
-looking at the brief [[makeTreeUsage][feature overview]].
+looking at the brief [[#makeTreeUsage][feature overview]].

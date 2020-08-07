@@ -23,35 +23,55 @@ module TooManyCells.Matrix.Utility
     , isCsvFile
     , getMatrixOutputType
     , matrixValidity
+    , hashNub
+    , decompressStreamAll
+    , transposeSc
+    , extractCellSc
+    , extractCellsSc
+    , removeCellsSc
+    , extractCellV
+    , aggSc
     ) where
 
 -- Remote
 import BirchBeer.Types
+import Codec.Compression.GZip (compress)
 import Control.Monad.Managed (runManaged)
 import Control.Monad.State (MonadState (..), State (..), evalState, execState, modify)
+import Control.Monad.IO.Class (MonadIO)
 import Data.Bool (bool)
 import Data.Char (toUpper)
 import Data.Function (on)
-import Data.List (maximumBy)
+import Data.Hashable (Hashable)
+import Data.List (maximumBy, isInfixOf, foldl')
 import Data.Maybe (fromMaybe)
-import Data.Matrix.MatrixMarket (Matrix(RMatrix, IntMatrix), Structure (..), writeMatrix)
+import Data.Matrix.MatrixMarket (Matrix(RMatrix, IntMatrix), Structure (..), writeMatrix')
 import Data.Scientific (toRealFloat, Scientific)
+import Data.Streaming.Zlib (WindowBits)
 import Language.R as R
 import Language.R.QQ (r)
 import System.FilePath ((</>))
 import TextShow (showt)
+import qualified Control.Foldl as Fold
 import qualified Control.Lens as L
+import qualified Data.Attoparsec.Text as A
 import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.Lazy.Char8 as BL
 import qualified Data.ByteString.Streaming.Char8 as BS
 import qualified Data.Clustering.Hierarchical as HC
 import qualified Data.Graph.Inductive as G
+import qualified Data.HashSet as HSet
+import qualified Data.IntMap.Strict as IMap
+import qualified Data.IntervalMap.Strict as IntervalMap
 import qualified Data.Map.Strict as Map
 import qualified Data.Sequence as Seq
+import qualified Data.Set as Set
 import qualified Data.Sparse.Common as S
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as T
 import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TL
 import qualified Data.Text.Lazy.IO as TL
 import qualified Data.Text.Lazy.Read as TL
 import qualified Data.Vector as V
@@ -60,6 +80,7 @@ import qualified Streaming as Stream
 import qualified Streaming.Cassava as Stream
 import qualified Streaming.Prelude as Stream
 import qualified Streaming.With.Lifted as SW
+import qualified Streaming.Zip as S
 import qualified System.Directory as FP
 
 -- Local
@@ -84,7 +105,7 @@ scToRMat sc = do
     [r| library(Matrix) |]
 
     let rowNamesR = fmap (T.unpack . unCell) . V.toList . _rowNames $ sc
-        colNamesR = fmap (T.unpack . unGene) . V.toList . _colNames $ sc
+        colNamesR = fmap (T.unpack . unFeature) . V.toList . _colNames $ sc
 
     mat <- fmap unRMatObsRow . matToRMat . _matrix $ sc
 
@@ -169,18 +190,25 @@ writeSparseMatrixLike (MatrixTranspose mt) (MatrixFolder folder) mat = do
   -- Where to place output files.
   FP.createDirectoryIfMissing True folder
 
-  writeMatrix (folder </> "matrix.mtx")
+  let writeCompressedFile x = BL.writeFile x . compress
+
+  (=<<) (writeCompressedFile (folder </> "matrix.mtx.gz"))
+    . writeMatrix'
     . spMatToMat
-    . (bool S.transposeSM id mt) -- To have cells as columns
+    . (bool S.transposeSM id mt) -- whether to transpose
     . getMatrix
     $ mat
-  T.writeFile (folder </> "genes.tsv")
+  writeCompressedFile (folder </> "features.tsv.gz")
+    . TL.encodeUtf8
+    . TL.fromStrict
     . T.unlines
-    . fmap (\x -> T.intercalate "\t" [x, x])
+    . fmap (\x -> T.intercalate "\t" [x, x, "NA"])
     . V.toList
     . getColNames
     $ mat
-  T.writeFile (folder </> "barcodes.tsv")
+  writeCompressedFile (folder </> "barcodes.tsv.gz")
+    . TL.encodeUtf8
+    . TL.fromStrict
     . T.unlines
     . V.toList
     . getRowNames
@@ -254,3 +282,101 @@ matrixValidity mat
     (rows, cols) = S.dimSM . getMatrix $ mat
     numCells = V.length . getRowNames $ mat
     numFeatures = V.length . getColNames $ mat
+
+-- | Same as Control.Foldl.nub but using HashSet.
+hashNub :: (Hashable a, Eq a) => Fold.Fold a [a]
+hashNub = Fold.Fold step (HSet.empty, id) fin
+  where
+    step (!s, !r) a =
+      if HSet.member a s
+        then (s, r)
+        else (HSet.insert a s, r . (a :))
+    fin (_, !r) = r []
+{-# INLINABLE hashNub #-}
+
+-- | Keep decompressing a compressed bytestream until exhaused.
+decompressStreamAll :: (MonadIO m) => WindowBits -> BS.ByteString m r -> BS.ByteString m r
+decompressStreamAll w bs = S.decompress' w bs >>= go
+  where
+    go (Left bs) = S.decompress' w bs >>= go
+    go (Right r) = return r
+{-# INLINABLE decompressStreamAll #-}
+
+-- | Transpose a SingleCells type.
+transposeSc :: SingleCells -> SingleCells
+transposeSc (SingleCells (MatObsRow mat) rows cols) =
+  SingleCells
+    (MatObsRow . S.transposeSM $ mat)
+    (fmap (Cell . unFeature) cols)
+    (fmap (Feature . unCell) rows)
+
+-- | Get a single cell from a SingleCells type.
+extractCellSc :: Cell -> SingleCells -> SingleCells
+extractCellSc cell sc = L.set rowNames (V.singleton cell)
+                    . L.set matrix newMatrix
+                    $ sc
+  where
+    newMatrix = MatObsRow
+              . S.fromRowsL
+              . (:[])
+              . flip S.extractRow (getCellIdx sc cell)
+              . unMatObsRow
+              . L.view matrix
+              $ sc
+
+-- | Get a list of single cells for each single cell from a SingleCells type.
+extractCellsSc :: SingleCells -> [SingleCells]
+extractCellsSc sc = zipWith
+                      (\ v c -> sc { _rowNames = V.singleton c
+                                   , _matrix = MatObsRow $ S.fromRowsL [v]
+                                   }
+                      )
+                      (S.toRowsL . unMatObsRow . L.view matrix $ sc)
+                  . V.toList
+                  . L.view rowNames
+                  $ sc
+
+-- | Get a single cell vector from a SingleCells type.
+extractCellV :: Cell -> SingleCells -> S.SpVector Double
+extractCellV cell sc =
+  flip S.extractRow (getCellIdx sc cell) . unMatObsRow . L.view matrix $ sc
+
+-- | Remove single cells from a SingleCells type.
+removeCellsSc :: [Cell] -> SingleCells -> SingleCells
+removeCellsSc cells sc = L.set rowNames newRowNames
+                     . L.set matrix newMatrix
+                     $ sc
+  where
+    blacklistCells = Set.fromList cells
+    blacklistIdxs = Set.fromList . fmap (getCellIdx sc) $ cells
+    whitelistIdxs = filter
+                      (not . flip Set.member blacklistIdxs)
+                      [0..(V.length $ L.view rowNames sc) - 1]
+    newRowNames =
+      V.filter (not . flip Set.member blacklistCells) . L.view rowNames $ sc
+    newMatrix = MatObsRow
+              . S.fromRowsL
+              . fmap (\x -> flip S.extractRow x . unMatObsRow . L.view matrix $ sc)
+              $ whitelistIdxs
+
+-- | Get the index of a cell in a SingleCells type.
+getCellIdx :: SingleCells -> Cell -> Int
+getCellIdx sc x =
+  fromMaybe (error $ "extractCellIdx: cell not found in matrix: " <> show x)
+    . V.findIndex (== x)
+    . L.view rowNames
+    $ sc
+
+-- | Aggregate SingleCells using average.
+aggSc :: SingleCells -> AggSingleCells
+aggSc sc = AggSingleCells
+         . L.over matrix (MatObsRow . avgMat . unMatObsRow)
+         . L.over rowNames ( fmap (Cell . (<> " Aggregate") . unCell)
+                           . V.take 1
+                           )
+         $ sc
+  where
+    avgMat = S.fromListDenseSM numRows
+           . fmap ((/ fromIntegral numCols) . foldl' (+) 0)
+           . S.toRowsL
+    (numRows, numCols) = S.dim . unMatObsRow . L.view matrix $ sc

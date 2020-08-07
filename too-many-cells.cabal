@@ -1,5 +1,5 @@
 name:                too-many-cells
-version:             0.2.2.1
+version:             2.0.0.0
 synopsis:            Cluster single cells and analyze cell clade relationships.
 description:         Different methods to cluster and analyze single cell data with diversity indices and differential expression.
 homepage:            http://github.com/GregorySchwartz/too-many-cells#readme
@@ -7,7 +7,7 @@ license:             GPL-3
 license-file:        LICENSE
 author:              Gregory W. Schwartz
 maintainer:          gsch@pennmedicine.upenn.edu
-copyright:           2019 Gregory W. Schwartz
+copyright:           2020 Gregory W. Schwartz
 category:            Bioinformatics
 build-type:          Simple
 -- extra-source-files:
@@ -15,9 +15,11 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     TooManyCells.Diversity.Diversity
+  exposed-modules:     TooManyCells.Classify.Classify
+                     , TooManyCells.Classify.Types
                      , TooManyCells.Differential.Differential
                      , TooManyCells.Differential.Types
+                     , TooManyCells.Diversity.Diversity
                      , TooManyCells.Diversity.Load
                      , TooManyCells.Diversity.Plot
                      , TooManyCells.Diversity.Types
@@ -29,15 +31,37 @@ library
                      , TooManyCells.MakeTree.Plot
                      , TooManyCells.MakeTree.Print
                      , TooManyCells.MakeTree.Types
+                     , TooManyCells.MakeTree.Utility
+                     , TooManyCells.Matrix.AtacSeq
                      , TooManyCells.Matrix.Load
                      , TooManyCells.Matrix.Preprocess
                      , TooManyCells.Matrix.Types
                      , TooManyCells.Matrix.Utility
+                     , TooManyCells.Motifs.FindMotif
+                     , TooManyCells.Motifs.Types
                      , TooManyCells.Paths.Distance
                      , TooManyCells.Paths.Plot
                      , TooManyCells.Paths.Types
+                     , TooManyCells.Peaks.ClusterPeaks
+                     , TooManyCells.Peaks.Types
+                     , TooManyCells.Program.Classify
+                     , TooManyCells.Program.Differential
+                     , TooManyCells.Program.Diversity
+                     , TooManyCells.Program.Interactive
+                     , TooManyCells.Program.LoadMatrix
+                     , TooManyCells.Program.MakeTree
+                     , TooManyCells.Program.MatrixOutput
+                     , TooManyCells.Program.Motifs
+                     , TooManyCells.Program.Options
+                     , TooManyCells.Program.Paths
+                     , TooManyCells.Program.Peaks
+                     , TooManyCells.Program.Utility
   build-depends:       base >= 4.7 && < 5
+                     , IntervalMap
+                     , SVGFonts
                      , aeson
+                     , async-pool
+                     , attoparsec
                      , birch-beer
                      , bytestring
                      , cassava
@@ -45,42 +69,55 @@ library
                      , containers
                      , deepseq
                      , diagrams
-                     , diagrams-lib
                      , diagrams-cairo
                      , diagrams-graphviz
+                     , diagrams-lib
                      , differential
                      , directory
                      , diversity
-                     , find-clumpiness
-                     , filepath
                      , fgl
+                     , filepath
+                     , find-clumpiness
                      , foldl
                      , graphviz
+                     , hashable
                      , hierarchical-clustering
                      , hierarchical-spectral-clustering
                      , hmatrix
+                     , hmatrix-svdlibc
                      , inline-r
                      , lens
                      , managed
                      , matrix-market-attoparsec
                      , modularity
                      , mtl
+                     , optparse-generic
                      , palette
                      , parallel
                      , plots
+                     , process
+                     , resourcet
                      , safe
                      , scientific
                      , sparse-linear-algebra
+                     , spectral-clustering >= 0.3.0.2
                      , split
                      , statistics
+                     , stm
                      , streaming
                      , streaming-bytestring
                      , streaming-cassava
+                     , streaming-commons
+                     , streaming-utils
                      , streaming-with
-                     , SVGFonts
+                     , system-filepath
                      , temporary
+                     , terminal-progress-bar
                      , text
                      , text-show
+                     , transformers
+                     , turtle >= 1.5.18
+                     , unordered-containers
                      , vector
                      , vector-algorithms
                      , zlib
@@ -93,37 +130,7 @@ executable too-many-cells
   ghc-options:         -threaded -rtsopts -O2
   build-depends:       base
                      , too-many-cells
-                     , aeson
-                     , birch-beer
-                     , bytestring
-                     , cassava
-                     , colour
-                     , containers
-                     , diagrams-lib
-                     , diagrams-cairo
-                     , directory
-                     , fgl
-                     , filepath
-                     , find-clumpiness
-                     , graphviz
-                     , hierarchical-spectral-clustering
-                     , inline-r
-                     , lens
-                     , matrix-market-attoparsec
-                     , modularity
-                     , mtl
                      , optparse-generic
-                     , palette
-                     , plots
-                     , spectral-clustering >= 0.3.0.2
-                     , streaming
-                     , streaming-bytestring
-                     , streaming-utils
-                     , terminal-progress-bar
-                     , text
-                     , text-show
-                     , transformers
-                     , vector
   default-language:    Haskell2010
 
 source-repository head

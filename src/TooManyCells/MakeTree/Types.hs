@@ -53,6 +53,13 @@ newtype PreNormalization = PreNormalization
 newtype IsLeaf = IsLeaf {unIsLeaf :: Bool} deriving (Eq, Ord, Read, Show)
 newtype DenseFlag = DenseFlag { unDenseFlag :: Bool }
                     deriving (Eq, Ord, Read, Show)
+newtype LabelMapOutputFlag = LabelMapOutputFlag { unLabelMapOutputFlag :: Bool }
+                             deriving (Eq, Ord, Read, Show)
+newtype FragmentsOutputFlag =
+  FragmentsOutputFlag { unFragmentsOutputFlag :: Bool }
+  deriving (Eq, Ord, Read, Show)
+newtype UpdateTreeRowsFlag = UpdateTreeRowsFlag { unUpdateTreeRowsFlag :: Bool }
+                             deriving (Read, Show)
 newtype AdjacencyMat = AdjacencyMat
     { unAdjacencyMat :: H.Matrix H.R
     } deriving (Read,Show)
@@ -113,11 +120,6 @@ instance Show LabelCompositions where
 
 instance TreeItem CellInfo where
     getId = Id . unCell . _barcode
-
-instance MatrixLike SingleCells where
-    getMatrix   = unMatObsRow . _matrix
-    getRowNames = fmap unCell . _rowNames
-    getColNames = fmap unGene . _colNames
 
 instance A.ToJSON Q where
     toEncoding = A.genericToEncoding A.defaultOptions

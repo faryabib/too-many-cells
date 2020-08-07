@@ -17,7 +17,12 @@ import qualified Data.Set as Set
 
 -- Basic
 newtype TopN = TopN { unTopN :: Int }
+newtype NoEdger = NoEdger { unNoEdger :: Bool }
 newtype DiffNodes = DiffNodes {unDiffNodes :: ([G.Node], [G.Node])}
 newtype DiffLabels =
   DiffLabels { unDiffLabels :: (Maybe (Set.Set Label), Maybe (Set.Set Label)) }
 newtype Aggregate = Aggregate { unAggregate :: Bool }
+newtype SeparateNodes = SeparateNodes { unSeparateNodes :: Bool }
+newtype SeparateLabels = SeparateLabels { unSeparateLabels :: Bool }
+newtype ViolinFlag = ViolinFlag { unViolinFlag :: Bool }
+newtype NoOutlierFlag = NoOutlierFlag { unNoOutlierFlag :: Bool }

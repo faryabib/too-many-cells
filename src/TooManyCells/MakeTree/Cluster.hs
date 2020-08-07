@@ -24,7 +24,7 @@ import BirchBeer.Types
 import BirchBeer.Utility (getGraphLeaves, getGraphLeavesWithParents, dendrogramToGraph, dendToTree, clusteringTreeToTree, treeToGraph)
 import Control.Monad (join)
 import Data.Function (on)
-import Data.List (sortBy, groupBy, zip4, genericLength)
+import Data.List (sortBy, groupBy, zip4, genericLength, foldl')
 import Data.Int (Int32)
 import Data.Maybe (fromMaybe, catMaybes, mapMaybe)
 import Math.Modularity.Types (Q (..))
@@ -37,7 +37,7 @@ import Language.R.QQ (r)
 import Math.Clustering.Hierarchical.Spectral.Sparse (hierarchicalSpectralCluster, B (..))
 import Math.Clustering.Hierarchical.Spectral.Types (clusteringTreeToDendrogram, getClusterItemsDend, EigenGroup (..))
 import Math.Diversity.Diversity (diversity)
-import Statistics.Quantile (continuousBy, s)
+import Statistics.Quantile (quantile, s)
 import System.IO (hPutStrLn, stderr)
 import Safe (headMay)
 import TextShow (showt)
@@ -93,7 +93,7 @@ hClust sc =
                $ dend
     dend = HC.dendrogram HC.CLINK items euclDist
     euclDist x y =
-        sqrt . sum . fmap (** 2) $ S.liftU2 (-) (L.view L._2 y) (L.view L._2 x)
+        sqrt . foldl' (+) 0 . fmap (** 2) $ (L.view L._2 y) S.^-^ (L.view L._2 x)
     items = (\ fs
             -> zip3
                    (V.toList $ _rowNames sc)
@@ -113,7 +113,7 @@ assignClusters =
 
 -- | Find cut value.
 findCut :: HC.Dendrogram a -> HC.Distance
-findCut = continuousBy s 9 10 . VU.fromList . F.toList . flattenDist
+findCut = quantile s 9 10 . VU.fromList . F.toList . flattenDist
   where
     flattenDist (HC.Leaf _)          = Seq.empty
     flattenDist (HC.Branch !d !l !r) =
@@ -134,38 +134,17 @@ clustersToClusterList sc clustering = do
 -- | Hierarchical spectral clustering.
 hSpecClust :: DenseFlag
            -> EigenGroup
-           -> NormType
            -> Maybe NumEigen
            -> Maybe Q
            -> Maybe NumRuns
            -> SingleCells
            -> IO (ClusterResults, ClusterGraph CellInfo)
-hSpecClust (DenseFlag isDense) eigenGroup norm numEigen minModMay runsMay sc = do
+hSpecClust (DenseFlag isDense) eigenGroup numEigen minModMay runsMay sc = do
   let items      = V.zipWith
                       (\x y -> CellInfo x y)
                       (_rowNames sc)
                       (fmap Row . flip V.generate id . V.length . _rowNames $ sc)
-      hSpecCommand TfIdfNorm False =
-          hierarchicalSpectralCluster
-            eigenGroup
-            True
-            (fmap unNumEigen numEigen)
-            Nothing
-            minModMay
-            (fmap unNumRuns runsMay)
-            items
-          . Left
-      hSpecCommand BothNorm False =
-          hierarchicalSpectralCluster
-            eigenGroup
-            True
-            (fmap unNumEigen numEigen)
-            Nothing
-            minModMay
-            (fmap unNumRuns runsMay)
-            items
-          . Left
-      hSpecCommand _ False =
+      hSpecCommand False =
           hierarchicalSpectralCluster
             eigenGroup
             False
@@ -175,29 +154,7 @@ hSpecClust (DenseFlag isDense) eigenGroup norm numEigen minModMay runsMay sc = d
             (fmap unNumRuns runsMay)
             items
           . Left
-      hSpecCommand TfIdfNorm True =
-          HSD.hierarchicalSpectralCluster
-            eigenGroup
-            True
-            (fmap unNumEigen numEigen)
-            Nothing
-            minModMay
-            (fmap unNumRuns runsMay)
-            items
-          . Left
-          . sparseToHMat
-      hSpecCommand BothNorm True =
-          HSD.hierarchicalSpectralCluster
-            eigenGroup
-            True
-            (fmap unNumEigen numEigen)
-            Nothing
-            minModMay
-            (fmap unNumRuns runsMay)
-            items
-          . Left
-          . sparseToHMat
-      hSpecCommand _ True =
+      hSpecCommand True =
           HSD.hierarchicalSpectralCluster
             eigenGroup
             False
@@ -209,7 +166,7 @@ hSpecClust (DenseFlag isDense) eigenGroup norm numEigen minModMay runsMay sc = d
           . Left
           . sparseToHMat
 
-  tree <- hSpecCommand norm isDense . unMatObsRow . _matrix $ sc
+  tree <- hSpecCommand isDense . unMatObsRow . _matrix $ sc
 
   let clustering :: [(CellInfo, [Cluster])]
       clustering =
